@@ -35,9 +35,9 @@ void loop() {
   }
   
   AvgAcs=Samples/150.0;
-  AcsValueF = (2.5 - (AvgAcs * (5.0 / 1024.0)))/0.100;
+  AcsValueF = (2.5 - (AvgAcs * (5.0 / 1024.0)))/0.066;
 
-  Serial.print(AcsValueF);
+  Serial.println(AcsValueF);
   delay(50);
 
 }
