@@ -4,13 +4,13 @@ import React, { useState, useEffect } from 'react';
 
 // --- Configuration ---
 // IMPORTANT: Replace this placeholder with the actual IP address of your ESP32
-const INITIAL_ESP32_IP = '192.168.1.100'; 
+const INITIAL_ESP32_IP = '192.168.1.200'; 
 const NOMINAL_VOLTAGE = 5.0; // Assume 5.0V for Power calculation on the client side
 
 // --- Lucide Icons (Using simple SVG placeholders for a single-file implementation) ---
 // Bolt: Power/Voltage
 const Bolt = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H3l8 11H3l10 9V11h8L13 2z"/></svg>;
-// Zap: Current/Lightning
+// Zap: Current/Lightninga
 const Zap = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 // CheckCircle/Alert: Status
 const CheckCircle = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14 9 11"/></svg>;
