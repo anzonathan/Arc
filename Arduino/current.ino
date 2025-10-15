@@ -12,8 +12,8 @@ Response: {"current": 0.000}
 
 // --- CONFIGURATION ---
 // 1. Enter your Wi-Fi credentials
-const char* ssid = "arc";     // <-- CHANGE THIS
-const char* password = "admin"; // <-- CHANGE THIS
+const char* ssid = "-_-";     // <-- CHANGE THIS
+const char* password = "qtrf3498"; // <-- CHANGE THIS
 
 // 2. STATIC IP CONFIGURATION (CRITICAL)
 // You MUST change these values to match your home network:
