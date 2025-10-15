@@ -17,6 +17,7 @@ void setup() {
   Serial.begin(9600);
 
   pinMode(check, OUTPUT);
+  pinMode(2, INPUT);
 
 }
 
@@ -27,7 +28,7 @@ void loop() {
   float AcsValue= 0.0, Samples= 0.0, AvgAcs=0.0, AcsValueF=0.0;
 
   for(int x = 0; x < 150; x++){
-    AcsValue = analogRead(A0);
+    AcsValue = analogRead(2);
     Samples = Samples + AcsValue;
 
     delay(3);
