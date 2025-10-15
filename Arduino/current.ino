@@ -1,27 +1,30 @@
 /*
 Project Name: Arc
 Project Author: Nathaniel Mugenyi
-Fix: Changed Serial Baud Rate to 115200 (recommended for ESP32) 
-to eliminate "weird characters" caused by baud rate mismatch.
+Feature: Converted to a Web Server to expose current data over Wi-Fi.
+
+Endpoint: http://<ESP32_IP>/current
+Response: {"current": 0.000}
 */
 
-int check = 13; // indicator (Note: GPIO 13 on ESP32 is fine)
-const int currentPin = 2; // Analog input pin for ACS712 (Note: GPIO 2 is an analog pin on some ESP32 boards)
+#include <WiFi.h>
+#include <WebServer.h>
 
-void setup() {
-  
-  // *** FIXED: Increased baud rate to 115200 for faster, more stable communication ***
-  Serial.begin(115200);
+// --- CONFIGURATION ---
+// 1. Enter your Wi-Fi credentials
+const char* ssid = "arc";     // <-- CHANGE THIS
+const char* password = "admin"; // <-- CHANGE THIS
 
-  pinMode(check, OUTPUT);
-  // Note: For ESP32 ADC pins, simply calling analogRead() is often enough, 
-  // but pinMode(2, INPUT) doesn't hurt.
-  pinMode(currentPin, INPUT); 
-}
+// 2. Hardware Pins and Indicator
+int check = 13; // Indicator LED pin (GPIO 13)
+const int currentPin = 2; // Analog input pin for ACS712 (GPIO 2 - ADC1_CH2)
 
-void loop() {
-  
-  // Variables for current calculation
+// Web Server instance on port 80
+WebServer server(80);
+
+// --- CURRENT MEASUREMENT FUNCTION ---
+// Encapsulates the core logic to get a stable current reading
+float measureCurrent() {
   float AcsValue = 0.0;
   float Samples = 0.0;
   float AvgAcs = 0.0;
@@ -30,10 +33,8 @@ void loop() {
   
   // Take multiple samples to get a more stable average reading
   for(int x = 0; x < numSamples; x++){
-    // Read the analog value from the sensor pin
     AcsValue = analogRead(currentPin);
     Samples = Samples + AcsValue;
-    // Delay slightly between readings
     delay(3); 
   }
   
@@ -41,19 +42,88 @@ void loop() {
   AvgAcs = Samples / numSamples;
   
   // 2. Convert ADC reading to current (Amperes)
-  // Assumes: 
-  // - 10-bit ADC (1024 divisions)
-  // - Reference Voltage (VCC) is 5.0V for the ACS712 (even if ESP32 ADC is 3.3V)
-  // - Sensitivity is 0.066V/A (66 mV/A, typical of a +/-30A ACS712)
+  // WARNING: This calculation assumes a 10-bit ADC (1024) and a 5.0V reference.
+  // Standard ESP32 ADCs are typically 12-bit (4095) and 3.3V reference. 
+  // If your readings are inaccurate, you may need to adjust 5.0/1024.0.
   
-  // Calculation: ((Quiescent_Voltage - Measured_Voltage) / Sensitivity)
   // Measured_Voltage = (AvgAcs * (5.0 / 1024.0))
-  // Quiescent_Voltage is 2.5V
+  // Calculation: ((Quiescent_Voltage - Measured_Voltage) / Sensitivity)
   AcsValueF = (2.5 - (AvgAcs * (5.0 / 1024.0))) / 0.066;
-
-  // Print the calculated current value
-  Serial.println(AcsValueF);
   
-  // Short delay before the next loop iteration
-  delay(50);
+  return AcsValueF;
+}
+
+
+// --- WEB SERVER HANDLERS ---
+
+// Handler for the /current endpoint
+void handleCurrent() {
+  // Read the current value using the dedicated function
+  float current = measureCurrent();
+  
+  // Format the response as JSON
+  String jsonResponse = "{ \"current\": " + String(current, 3) + " }";
+
+  // Allow cross-origin requests (CORS) for web apps to access this API
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  // Send the JSON response
+  server.send(200, "application/json", jsonResponse);
+}
+
+// Handler for the root path 
+void handleRoot() {
+  String html = "<html><head><title>Arc Sensor Data</title></head><body>";
+  html += "<h1>Arc Sensor Web Server</h1>";
+  html += "<p>Current Reading: <span id='currentData'>Loading...</span> A</p>";
+  html += "<p>Access the API endpoint directly: <a href='/current'>/current</a></p>";
+  
+  // Simple JavaScript to fetch and display the data
+  html += "<script>";
+  html += "function fetchData() { fetch('/current').then(res => res.json()).then(data => { document.getElementById('currentData').innerText = data.current.toFixed(3); }); }";
+  html += "setInterval(fetchData, 1000); fetchData();";
+  html += "</script>";
+  
+  html += "</body></html>";
+  server.send(200, "text/html", html);
+}
+
+
+
+void setup() {
+  
+  Serial.begin(115200);
+  pinMode(check, OUTPUT);
+  pinMode(currentPin, INPUT); 
+
+  // Connect to Wi-Fi
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+
+  // Wait for connection and print status
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi connected.");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  // Set up server routes
+  server.on("/current", handleCurrent);
+  server.on("/", handleRoot); // Set up a simple root page for testing
+
+  // Start the server
+  server.begin();
+  Serial.println("HTTP server started.");
+}
+
+
+// --- LOOP ---
+void loop() {
+  // Web Server: Handle incoming client requests
+  server.handleClient();
+  // Note: The measurement logic is now only called when a client requests the data.
 }
