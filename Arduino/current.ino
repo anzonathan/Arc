@@ -1,26 +1,25 @@
 /*
 Project Name: Arc
 Project Author: Nathaniel Mugenyi
-Feature: Converted to a Web Server to expose current data over Wi-Fi with a STATIC IP.
+Feature: Converted to a Web Server using MDNS for easy discovery.
+Device Name: "ARC Power Unit" (Hostname: arcpowerunit.local)
 
-Endpoint: http://<ESP32_STATIC_IP>/current
+Endpoint: http://arcpowerunit.local/current
 Response: {"current": 0.000}
 */
 
 #include <WiFi.h>
 #include <WebServer.h>
+#include <ESPmDNS.h> // Include the MDNS library
 
 // --- CONFIGURATION ---
 // 1. Enter your Wi-Fi credentials
 const char* ssid = "-_-";     // <-- CHANGE THIS
 const char* password = "qtrf3498"; // <-- CHANGE THIS
 
-// 2. STATIC IP CONFIGURATION (CRITICAL)
-// You MUST change these values to match your home network:
-// IMPORTANT: Choose an IP that is not already in use on your network!
-IPAddress local_IP(192, 168, 1, 200); // <-- Preferred Static IP for ESP32
-IPAddress gateway(192, 168, 1, 1);    // <-- Your Router's IP Address
-IPAddress subnet(255, 255, 255, 0);   // <-- Standard Subnet Mask
+// 2. MDNS Hostname Configuration
+// The device will be accessible via: http://arcpowerunit.local
+const char* host = "arcpowerunit";
 
 // 3. Hardware Pins and Indicator
 int check = 13; // Indicator LED pin (GPIO 13)
@@ -37,6 +36,7 @@ float measureCurrent() {
   float AcsValueF = 0.0;
   const int numSamples = 150;
   
+  // Take multiple samples to get a more stable average reading
   for(int x = 0; x < numSamples; x++){
     AcsValue = analogRead(currentPin);
     Samples = Samples + AcsValue;
@@ -64,11 +64,12 @@ void handleCurrent() {
 }
 
 void handleRoot() {
-  String html = "<html><head><title>Arc Sensor Data</title></head><body>";
-  html += "<h1>Arc Sensor Web Server (Static IP)</h1>";
+  String html = "<html><head><title>Arc Power Unit Data</title></head><body>";
+  html += "<h1>ARC Power Unit Web Server</h1>";
   html += "<p>Current Reading: <span id='currentData'>Loading...</span> A</p>";
   html += "<p>Access the API endpoint directly: <a href='/current'>/current</a></p>";
-  html += "<p>Device IP: " + WiFi.localIP().toString() + "</p>";
+  html += "<p>Device Hostname: **http://" + String(host) + ".local/**</p>";
+  html += "<p>Current IP: " + WiFi.localIP().toString() + " (Dynamic)</p>";
   
   html += "<script>";
   html += "function fetchData() { fetch('/current').then(res => res.json()).then(data => { document.getElementById('currentData').innerText = data.current.toFixed(3); }); }";
@@ -87,12 +88,6 @@ void setup() {
   pinMode(check, OUTPUT);
   pinMode(currentPin, INPUT); 
 
-  // *** STATIC IP CONFIGURATION START ***
-  if (!WiFi.config(local_IP, gateway, subnet)) {
-    Serial.println("Static IP configuration failed!");
-  }
-  // *** STATIC IP CONFIGURATION END ***
-
   // Connect to Wi-Fi
   Serial.print("Connecting to WiFi: ");
   Serial.println(ssid);
@@ -105,8 +100,19 @@ void setup() {
   }
 
   Serial.println("\nWiFi connected.");
-  Serial.print("Static IP Address: ");
-  Serial.println(WiFi.localIP()); // This will now print your set static IP
+  Serial.print("Dynamic IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  // --- MDNS SETUP START ---
+  // Start MDNS service and advertise the hostname
+  if (!MDNS.begin(host)) {
+    Serial.println("Error starting MDNS");
+    return;
+  }
+  Serial.print("MDNS responder started. Hostname: ");
+  Serial.print(host);
+  Serial.println(".local");
+  // --- MDNS SETUP END ---
 
   // Set up server routes
   server.on("/current", handleCurrent);
@@ -119,5 +125,7 @@ void setup() {
 
 
 void loop() {
+  // MDNS must be updated periodically to function correctly
+  MDNS.update();
   server.handleClient();
 }

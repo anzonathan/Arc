@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 
 // --- Configuration ---
-// IMPORTANT: Replace this placeholder with the actual IP address of your ESP32
-const INITIAL_ESP32_IP = '192.168.1.200'; 
+// The ESP32 is now configured with MDNS to use a friendly hostname.
+// Access the device via http://arcpowerunit.local/current
+const INITIAL_ESP32_HOST = 'arcpowerunit.local'; 
 const NOMINAL_VOLTAGE = 5.0; // Assume 5.0V for Power calculation on the client side
 
 // --- Lucide Icons (Using simple SVG placeholders for a single-file implementation) ---
@@ -14,8 +15,6 @@ const Bolt = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width
 const Zap = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 // CheckCircle/Alert: Status
 const CheckCircle = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14 9 11"/></svg>;
-
-// *** FIX: Changed the invalid closing tag </circleAlert> to the correct self-closing />
 const CircleAlert = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>;
 
 // Gauge: Power
@@ -38,7 +37,7 @@ const CurrentCard = ({ title, value, unit, icon: Icon, colorClass }) => (
 );
 
 // Helper Component for Device Status
-const DeviceStatus = ({ isConnected, ipAddress }) => {
+const DeviceStatus = ({ isConnected, hostname }) => {
   const statusText = isConnected ? 'Online' : 'Disconnected';
   const statusColor = isConnected ? 'bg-green-500' : 'bg-red-500';
   const statusIcon = isConnected ? CheckCircle : CircleAlert;
@@ -54,7 +53,7 @@ const DeviceStatus = ({ isConnected, ipAddress }) => {
           {statusIcon({className: `w-5 h-5 ${iconColor}`})}
       </div>
        <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-            Target IP: <span className="font-semibold">{ipAddress}</span>
+            Target Hostname: <span className="font-semibold">{hostname}</span>
       </p>
     </div>
   );
@@ -63,37 +62,39 @@ const DeviceStatus = ({ isConnected, ipAddress }) => {
 
 // Main component 
 const App = () => {
-  const [esp32Ip, setEsp32Ip] = useState(INITIAL_ESP32_IP);
+  // Renamed state variables from Ip to Host for clarity
+  const [esp32Host, setEsp32Host] = useState(INITIAL_ESP32_HOST);
   const [liveCurrent, setLiveCurrent] = useState(0.00);
   const [power, setPower] = useState(0.00);
   const [isConnected, setIsConnected] = useState(false);
   const [logMessages, setLogMessages] = useState([]);
   
   // Debounced state for input to prevent excessive API calls while typing
-  const [debouncedIp, setDebouncedIp] = useState(INITIAL_ESP32_IP);
+  const [debouncedHost, setDebouncedHost] = useState(INITIAL_ESP32_HOST);
 
-  // Effect for handling IP input changes (Debouncing for better performance)
+  // Effect for handling Host input changes (Debouncing for better performance)
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedIp(esp32Ip);
+      setDebouncedHost(esp32Host);
     }, 500); // Wait 500ms after user stops typing
     
     return () => clearTimeout(handler);
-  }, [esp32Ip]);
+  }, [esp32Host]);
 
 
   // Effect for fetching real-time data from ESP32
   useEffect(() => {
-    if (!debouncedIp || debouncedIp === 'YOUR_ESP32_IP_ADDRESS') {
+    if (!debouncedHost) {
         setIsConnected(false);
         setLiveCurrent(0.00);
         setPower(0.00);
-        setLogMessages(prev => [...prev, { time: new Date().toLocaleTimeString(), text: "Configuration needed: Please enter a valid ESP32 IP address.", type: 'error' }]);
+        setLogMessages(prev => [...prev, { time: new Date().toLocaleTimeString(), text: "Configuration needed: Hostname cannot be empty.", type: 'error' }]);
         return;
     }
 
     const fetchData = async () => {
-      const url = `http://${debouncedIp}/current`;
+      // Construct URL using the hostname
+      const url = `http://${debouncedHost}/current`;
       try {
         const response = await fetch(url);
         
@@ -112,7 +113,7 @@ const App = () => {
           setIsConnected(false);
         }
       } catch (error) {
-        // Network error (device offline, wrong IP, CORS issue)
+        // Network error (device offline, wrong hostname/IP, CORS issue)
         // Only log network error if previously connected to avoid spamming the log
         if (isConnected) {
              setLogMessages(prev => [...prev, { time: new Date().toLocaleTimeString(), text: `Network failure: Device unreachable at ${url}`, type: 'error' }]);
@@ -128,7 +129,7 @@ const App = () => {
     fetchData();
 
     return () => clearInterval(interval);
-  }, [debouncedIp, isConnected]); // Re-run effect if debounced IP changes or connection status changes
+  }, [debouncedHost, isConnected]); // Re-run effect if debounced Host changes or connection status changes
 
 
   // Calculate risk-based color for current reading
@@ -145,29 +146,30 @@ const App = () => {
             Power Monitoring Dashboard
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-400">
-            Fetching real-time data from your ESP32 web server.
+            Fetching real-time data from your **ARC Power Unit** web server.
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-            <DeviceStatus isConnected={isConnected} ipAddress={debouncedIp} />
+            {/* Pass hostname to the status component */}
+            <DeviceStatus isConnected={isConnected} hostname={debouncedHost} />
         </div>
       </header>
       
-      {/* IP Configuration */}
+      {/* Hostname Configuration */}
       <section className="mb-8 max-w-7xl mx-auto">
-          <label htmlFor="esp32-ip" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              ESP32 Server IP Address
+          <label htmlFor="esp32-host" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              ESP32 Server Hostname (MDNS)
           </label>
           <input
-              id="esp32-ip"
+              id="esp32-host"
               type="text"
-              value={esp32Ip}
-              onChange={(e) => setEsp32Ip(e.target.value)}
-              placeholder="e.g., 192.168.1.100"
+              value={esp32Host}
+              onChange={(e) => setEsp32Host(e.target.value)}
+              placeholder="e.g., arcpowerunit.local"
               className="w-full sm:w-96 p-3 border border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono"
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Set the IP address of your ESP32 device above. Changes are applied automatically.
+              The ESP32 is now accessible via its hostname, **arcpowerunit.local**, regardless of its assigned IP address.
           </p>
       </section>
 
@@ -217,11 +219,9 @@ const App = () => {
                 <p className="text-gray-600 dark:text-gray-400">[{new Date().toLocaleTimeString()}]: Data fetched successfully. Current: {liveCurrent.toFixed(3)} A</p>
             )}
             {liveCurrent > 4.5 && (
-                 // FIX: Removed LaTeX syntax ($4.5\text{A}$)
                  <p className="text-red-600 dark:text-red-400 font-bold">[{new Date().toLocaleTimeString()}]: ALERT: Current draw exceeds HIGH threshold (4.5 A)!</p>
             )}
             {liveCurrent > 2.0 && liveCurrent <= 4.5 && (
-                 // FIX: Removed LaTeX syntax ($2.0\text{A}$)
                  <p className="text-yellow-600 dark:text-yellow-400">[{new Date().toLocaleTimeString()}]: WARNING: Current draw exceeds MEDIUM threshold (2.0 A).</p>
             )}
           </div>
