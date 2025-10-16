@@ -125,7 +125,6 @@ void setup() {
 
 
 void loop() {
-  // MDNS must be updated periodically to function correctly
-  MDNS.update();
+  // NOTE: MDNS.update() is NOT required for the ESP32 framework
   server.handleClient();
 }
